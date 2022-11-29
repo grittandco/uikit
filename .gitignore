@@ -8,7 +8,6 @@
 !/dist/js/
 /dist/js/*
 !/dist/js/components/
-/dist/js/components/*
 !/dist/js/components/.gitkeep
 !/dist/js/uikit.js
 !/dist/js/uikit.min.js
