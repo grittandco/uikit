@@ -11,3 +11,4 @@ export { default as SlideshowParallax } from './slideshow-parallax';
 export { default as Sortable } from './sortable';
 export { default as Tooltip } from './tooltip';
 export { default as Upload } from './upload';
+export { default as Popup } from './popup';

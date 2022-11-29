@@ -1,10 +1,10 @@
 /*! UIkit 3.15.14 | https://www.getuikit.com | (c) 2014 - 2022 YOOtheme | MIT License */
 
 (function (global, factory) {
-    typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
-    typeof define === 'function' && define.amd ? define('uikit', factory) :
-    (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.UIkit = factory());
-})(this, (function () { 'use strict';
+    typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory(require('js-cookie')) :
+    typeof define === 'function' && define.amd ? define('uikit', ['js-cookie'], factory) :
+    (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.UIkit = factory(global.Cookies));
+})(this, (function (Cookies) { 'use strict';
 
     const { hasOwnProperty, toString } = Object.prototype;
 
@@ -2073,11 +2073,18 @@
     }
 
     function getScrollArea(element, target, viewportOffset, i) {
-      const [prop,, start, end] = dirs[i];
+      const [prop, axis, start, end] = dirs[i];
       const [scrollElement] = commonScrollParents(element, target);
       const viewport = offsetViewport(scrollElement);
-      viewport[start] -= scrollElement["scroll" + ucfirst(start)] - viewportOffset;
-      viewport[end] = viewport[start] + scrollElement["scroll" + ucfirst(prop)] - viewportOffset;
+
+      if (['auto', 'scroll'].includes(css(scrollElement, "overflow-" + axis))) {
+        viewport[start] -= scrollElement["scroll" + ucfirst(start)];
+        viewport[end] = scrollElement["scroll" + ucfirst(prop)];
+      }
+
+      viewport[start] += viewportOffset;
+      viewport[end] -= viewportOffset;
+
       return viewport;
     }
 
@@ -6760,15 +6767,21 @@
       }
 
       for (const component of components$2) {
-        if (within(e.target, component.$el)) {
+        if (within(e.target, component.$el) && isSameSiteLink(component.$el)) {
           e.preventDefault();
           component.scrollTo(getTargetElement(component.$el));
         }
       }
     }
 
+    function isSameSiteLink(el) {
+      return ['origin', 'pathname', 'search'].every((part) => location[part] === el[part]);
+    }
+
     function getTargetElement(el) {
-      return document.getElementById(decodeURIComponent(el.hash).substring(1));
+      if (isSameSiteLink(el)) {
+        return document.getElementById(decodeURIComponent(el.hash).substring(1));
+      }
     }
 
     var scrollspy = {
@@ -11632,6 +11645,129 @@
       e.stopPropagation();
     }
 
+    var popup = {
+      mixins: [Modal],
+
+      args: "type",
+
+      props: {
+        type: String,
+        delay: Number,
+        expires: Number,
+        cookie: Boolean
+      },
+
+      data: {
+        clsPage: "uk-modal-page",
+        selPanel: ".uk-modal-dialog",
+        selClose:
+        ".uk-modal-close, .uk-modal-close-default, .uk-modal-close-outside, .uk-modal-close-full",
+        type: "exit",
+        delay: 0,
+        expires: 7,
+        cookie: true
+      },
+
+      computed: {
+        cookie: {
+          get() {
+            return Cookies.get(this.$el.id) || true;
+          },
+
+          set(value) {
+            Cookies.set(this.$el.id, value, { expires: this.expires });
+          }
+        },
+        param() {
+          return getParam("popup") == this.$el.id;
+        }
+      },
+
+      events: [
+      {
+        name: "show",
+
+        self: true,
+
+        handler() {
+          if (hasClass(this.panel, "uk-margin-auto-vertical")) {
+            addClass(this.$el, "uk-flex");
+          } else {
+            css(this.$el, "display", "block");
+          }
+
+          height(this.$el); // force reflow
+        }
+      },
+
+      {
+        name: "hidden",
+
+        self: true,
+
+        handler() {
+          css(this.$el, "display", "");
+          removeClass(this.$el, "uk-flex");
+
+          if (this.expires !== 0) {
+            this.cookie = false;
+          }
+        }
+      },
+
+      {
+        name: "mouseout",
+
+        el: document,
+
+        filter() {
+          return (
+            this.type === "exit" && (this.expires === 0 || this.cookie == true));
+
+        },
+
+        handler(event) {
+          if (this.cookie != true) {
+            return;
+          }
+
+          if (
+          event.clientY < 50 &&
+          event.relatedTarget == null &&
+          event.target.nodeName.toLowerCase() !== "select")
+          {
+            let show = this.show;
+            setTimeout(show, this.delay);
+          }
+        }
+      }],
+
+
+      connected() {
+        // add modal class
+        !hasClass(this.$el, "uk-modal") && addClass(this.$el, "uk-modal");
+
+        // trigger entry popup
+        if (this.type === "entry" && (this.expires === 0 || this.cookie == true)) {
+          let show = this.show;
+          setTimeout(show, this.delay);
+        }
+        if (
+        this.type === "query-string" &&
+        this.param && (
+        this.expires === 0 || this.cookie == true))
+        {
+          let show = this.show;
+          setTimeout(show, this.delay);
+        }
+      }
+    };
+
+    function getParam(name) {
+      const match = new RegExp("[?&]" + name + "=([^&]*)").exec(window.location.search);
+      return match && decodeURIComponent(match[1].replace(/\+/g, " "));
+    }
+
     var components = /*#__PURE__*/Object.freeze({
         __proto__: null,
         Countdown: countdown,
@@ -11646,7 +11782,8 @@
         SlideshowParallax: sliderParallax,
         Sortable: sortable,
         Tooltip: tooltip,
-        Upload: upload
+        Upload: upload,
+        Popup: popup
     });
 
     each(components, (component, name) => UIkit.component(name, component));
